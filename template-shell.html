@@ -1,0 +1,629 @@
+<meta charset="UTF-8">
+<title>Letterbox Turntable</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fbfaf6;
+    --bg-2: #f3f1e9;
+    --panel-border: #ddd8c8;
+    --text: #1c1a15;
+    --muted: #7c7566;
+    --accent: #2a2620;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17150f;
+      --bg-2: #1e1b14;
+      --panel-border: #3a3527;
+      --text: #ece7d9;
+      --muted: #9b9484;
+      --accent: #ece7d9;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #17150f;
+    --bg-2: #1e1b14;
+    --panel-border: #3a3527;
+    --text: #ece7d9;
+    --muted: #9b9484;
+    --accent: #ece7d9;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    overflow: hidden;
+  }
+
+  body {
+    position: relative;
+    background:
+      radial-gradient(140% 100% at 50% 26%, var(--bg-2) 0%, var(--bg) 72%);
+  }
+
+  #stage {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    outline: none;
+  }
+
+  .brand-logo {
+    position: absolute;
+    top: 34px;
+    left: 34px;
+    z-index: 6;
+    color: var(--text);
+    pointer-events: none;
+  }
+  .brand-logo svg { display: block; height: 24px; width: auto; }
+
+  .hint {
+    position: absolute;
+    bottom: 30px;
+    right: 34px;
+    z-index: 6;
+    font-size: 10.5px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    opacity: 0.75;
+    text-align: right;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+  }
+  .hint.hidden { opacity: 0; }
+
+  #loading {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    background: var(--bg);
+    transition: opacity 0.5s ease;
+  }
+  #loading.hidden { opacity: 0; pointer-events: none; }
+  .spinner {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 2px solid var(--panel-border);
+    border-top-color: var(--accent);
+    animation: spin 0.9s linear infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .spinner { animation-duration: 1.6s; }
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading .msg {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  #loading .err {
+    color: var(--accent);
+    font-size: 12px;
+    max-width: 360px;
+    text-align: center;
+    letter-spacing: 0.02em;
+    text-transform: none;
+  }
+
+  #stage.ready { animation: fadein 0.6s ease both; }
+  @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+
+  @media (max-width: 640px) {
+    .brand-logo { top: 20px; left: 20px; }
+    .brand-logo svg { height: 20px; }
+    .hint { left: 20px; right: 18px; }
+  }
+</style>
+
+<canvas id="stage" role="img" aria-label="3D turntable view of the integrated letterbox model. Drag to orbit."></canvas>
+
+<div class="brand-logo">
+<!--__LOGO_SVG__-->
+</div>
+
+<div class="hint" id="drag-hint">Drag to orbit &middot; scroll to zoom</div>
+
+<div id="loading">
+  <div class="spinner" id="spinner"></div>
+  <div class="msg" id="loading-msg">Loading model&hellip;</div>
+</div>
+
+<script>
+/*__BUNDLE_JS__*/
+</script>
+
+<script>
+(function () {
+  var FBX_BASE64 = "__FBX_BASE64__";
+
+  function base64ToArrayBuffer(base64) {
+    var binary = atob(base64);
+    var len = binary.length;
+    var bytes = new Uint8Array(len);
+    for (var i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes.buffer;
+  }
+
+  var THREE = window.THREE;
+  var FBXLoader = window.FBXLoader;
+  var OrbitControls = window.OrbitControls;
+  var RoomEnvironment = window.RoomEnvironment;
+  var LineSegments2 = window.LineSegments2;
+  var LineSegmentsGeometry = window.LineSegmentsGeometry;
+  var LineMaterial = window.LineMaterial;
+
+  var canvas = document.getElementById('stage');
+  var loadingEl = document.getElementById('loading');
+  var loadingMsg = document.getElementById('loading-msg');
+  var spinnerEl = document.getElementById('spinner');
+  var dragHint = document.getElementById('drag-hint');
+
+  function readAccent() {
+    var v = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+    return v || '#2a2620';
+  }
+  function readBg() {
+    var v = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+    return v || '#15130f';
+  }
+
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  var scene = new THREE.Scene();
+  var bgColor = new THREE.Color(readBg());
+  scene.fog = new THREE.Fog(bgColor.getHex(), 6, 22);
+
+  var camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.05, 200);
+  camera.position.set(3.1, 1.7, 3.6);
+
+  var controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = 1.2;
+  controls.maxDistance = 12;
+  controls.maxPolarAngle = Math.PI * 0.53;
+  controls.target.set(0, 0.5, 0);
+  controls.update();
+
+  // Lighting: warm key + cool fill + soft rim, studio-style.
+  var hemi = new THREE.HemisphereLight(0xfff3e0, 0x14110c, 0.65);
+  scene.add(hemi);
+
+  var key = new THREE.DirectionalLight(0xfff1de, 2.1);
+  key.position.set(3.2, 4.4, 2.6);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.camera.near = 1;
+  key.shadow.camera.far = 14;
+  key.shadow.camera.left = -3;
+  key.shadow.camera.right = 3;
+  key.shadow.camera.top = 3;
+  key.shadow.camera.bottom = -3;
+  key.shadow.bias = -0.0015;
+  key.shadow.radius = 3;
+  scene.add(key);
+
+  var fill = new THREE.DirectionalLight(0x9fc7ff, 0.55);
+  fill.position.set(-3.5, 1.8, -1.5);
+  scene.add(fill);
+
+  var rim = new THREE.DirectionalLight(0xffd9ad, 0.9);
+  rim.position.set(-1.2, 2.6, -3.4);
+  scene.add(rim);
+
+  // Procedural exposed-aggregate paving: a dense, multi-toned scatter of stone
+  // chips (charcoal, mid grey, cream, tan) packed edge-to-edge, sealed with a
+  // glossy clearcoat so it picks up highlights the way the resin finish does.
+  function desaturate(hex, factor) {
+    var c = new THREE.Color(hex);
+    var hsl = { h: 0, s: 0, l: 0 };
+    c.getHSL(hsl);
+    c.setHSL(hsl.h, hsl.s * factor, hsl.l);
+    return '#' + c.getHexString();
+  }
+
+  // Builds the color map and a matching height/bump map from the same stone
+  // placements in a single pass, so every pebble's relief lines up exactly
+  // with its color under the canvas UVs.
+  function makeAggregateTextures() {
+    var size = 1024;
+    var colorCanvas = document.createElement('canvas');
+    colorCanvas.width = colorCanvas.height = size;
+    var colorCtx = colorCanvas.getContext('2d');
+
+    var bumpCanvas = document.createElement('canvas');
+    bumpCanvas.width = bumpCanvas.height = size;
+    var bumpCtx = bumpCanvas.getContext('2d');
+
+    colorCtx.fillStyle = desaturate('#5c584f', 0.35);
+    colorCtx.fillRect(0, 0, size, size);
+    bumpCtx.fillStyle = '#6b6b6b';
+    bumpCtx.fillRect(0, 0, size, size);
+
+    var stoneFamilies = [
+      { color: desaturate('#231f1a', 0.35), weight: 0.22 },
+      { color: desaturate('#3c3a34', 0.35), weight: 0.22 },
+      { color: desaturate('#6c6a61', 0.35), weight: 0.2 },
+      { color: desaturate('#8f8a7c', 0.35), weight: 0.14 },
+      { color: desaturate('#c9c2ac', 0.35), weight: 0.12 },
+      { color: desaturate('#a3835a', 0.35), weight: 0.06 },
+      { color: desaturate('#e8e2cf', 0.35), weight: 0.04 }
+    ];
+    function pickStone() {
+      var r = Math.random(), acc = 0;
+      for (var i = 0; i < stoneFamilies.length; i++) {
+        acc += stoneFamilies[i].weight;
+        if (r <= acc) return stoneFamilies[i].color;
+      }
+      return stoneFamilies[0].color;
+    }
+
+    function stonePath(ctx, sx, sy, r, sides, rot) {
+      ctx.beginPath();
+      for (var s = 0; s < sides; s++) {
+        var a = rot + (s / sides) * Math.PI * 2;
+        var rr = r * (0.75 + Math.random() * 0.5);
+        var px = sx + Math.cos(a) * rr;
+        var py = sy + Math.sin(a) * rr;
+        if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+    }
+
+    var stoneCount = 15000;
+    for (var i = 0; i < stoneCount; i++) {
+      var sx = Math.random() * size;
+      var sy = Math.random() * size;
+      var r = 1.4 + Math.random() * Math.random() * 6.5;
+      var sides = 5 + Math.floor(Math.random() * 3);
+      var rot = Math.random() * Math.PI * 2;
+
+      colorCtx.fillStyle = pickStone();
+      stonePath(colorCtx, sx, sy, r, sides, rot);
+      colorCtx.fill();
+
+      // Each pebble domes up from the grout: bright fill for the raised
+      // chip, a dark groove traced around it so the edge reads as a step.
+      var height = 150 + Math.floor(Math.random() * 100);
+      bumpCtx.fillStyle = 'rgb(' + height + ',' + height + ',' + height + ')';
+      stonePath(bumpCtx, sx, sy, r, sides, rot);
+      bumpCtx.fill();
+      bumpCtx.strokeStyle = 'rgba(25,25,25,0.55)';
+      bumpCtx.lineWidth = 0.8;
+      bumpCtx.stroke();
+    }
+
+    // Fine speckle to fill any remaining gaps between the larger chips.
+    for (var j = 0; j < 6000; j++) {
+      var fx = Math.random() * size, fy = Math.random() * size, fr = 0.5 + Math.random() * 1.2;
+      colorCtx.fillStyle = pickStone();
+      colorCtx.beginPath();
+      colorCtx.arc(fx, fy, fr, 0, Math.PI * 2);
+      colorCtx.fill();
+
+      var fh = 140 + Math.floor(Math.random() * 90);
+      bumpCtx.fillStyle = 'rgb(' + fh + ',' + fh + ',' + fh + ')';
+      bumpCtx.beginPath();
+      bumpCtx.arc(fx, fy, fr, 0, Math.PI * 2);
+      bumpCtx.fill();
+    }
+
+    var colorTex = new THREE.CanvasTexture(colorCanvas);
+    colorTex.colorSpace = THREE.SRGBColorSpace;
+    colorTex.anisotropy = 4;
+
+    var bumpTex = new THREE.CanvasTexture(bumpCanvas);
+    bumpTex.anisotropy = 4;
+
+    return { color: colorTex, bump: bumpTex };
+  }
+
+  var aggregateTextures = makeAggregateTextures();
+  var floorGeo = new THREE.PlaneGeometry(1, 1);
+  var floorMat = new THREE.MeshPhysicalMaterial({
+    map: aggregateTextures.color,
+    bumpMap: aggregateTextures.bump,
+    bumpScale: 14,
+    roughness: 0.55,
+    metalness: 0,
+    clearcoat: 0.45,
+    clearcoatRoughness: 0.28
+  });
+  var floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = 0;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  var pivot = new THREE.Group();
+  scene.add(pivot);
+
+  controls.addEventListener('start', function () {
+    dragHint.classList.add('hidden');
+  });
+
+  function frameObject(object) {
+    var box = new THREE.Box3().setFromObject(object);
+    var size = new THREE.Vector3();
+    var center = new THREE.Vector3();
+    box.getSize(size);
+    box.getCenter(center);
+
+    var maxDim = Math.max(size.x, size.y, size.z) || 1;
+    var scale = 2.1 / maxDim;
+    object.scale.setScalar(scale);
+
+    box.setFromObject(object);
+    box.getSize(size);
+    box.getCenter(center);
+    object.position.x -= center.x;
+    object.position.z -= center.z;
+    object.position.y -= box.min.y;
+    object.updateMatrixWorld(true);
+
+    // Ground the model on the base plate, not the anchor-bolt tips: the bolts'
+    // threaded ends already extend below the plate to embed in the paving, so
+    // sink the whole model until the plate (not the bolts) sits flush on top.
+    var plateBox = new THREE.Box3();
+    var hasPlate = false;
+    object.traverse(function (child) {
+      // Skip sketch-outline lines here: they're unnamed children riding along
+      // on every mesh (including the Hilti bolts), so a name-only filter lets
+      // a bolt's own outline slip through and drag the plate reference back
+      // down to the bolt tip.
+      if (child.isMesh && !child.isLineSegments2 && child.name.indexOf('Hilti') === -1) {
+        hasPlate = true;
+        plateBox.union(new THREE.Box3().setFromObject(child));
+      }
+    });
+    if (hasPlate) {
+      object.position.y -= plateBox.min.y;
+      object.updateMatrixWorld(true);
+    }
+
+    box.setFromObject(object);
+    var sphere = new THREE.Sphere();
+    box.getBoundingSphere(sphere);
+    var midY = (box.min.y + box.max.y) / 2;
+
+    var fovRad = camera.fov * Math.PI / 180;
+    var dist = (sphere.radius / Math.sin(fovRad / 2)) * 1.35;
+    var dir = new THREE.Vector3(-1.5, 0.5, 0.9).normalize();
+    camera.position.copy(dir.multiplyScalar(dist).add(new THREE.Vector3(0, midY * 0.25, 0)));
+    controls.target.set(0, midY, 0);
+    controls.minDistance = dist * 0.35;
+    controls.maxDistance = dist * 3.2;
+    controls.update();
+
+    // Square paving pad, side length referenced against the model's own footprint.
+    var padSide = Math.max(sphere.radius * 2.18, 0.77);
+    floor.scale.setScalar(padSide);
+    floor.position.y = 0;
+    scene.fog.near = dist * 1.4;
+    scene.fog.far = dist * 5.5;
+  }
+
+  // Studio environment map for believable metal reflections (no external HDRI fetch).
+  var pmrem = new THREE.PMREMGenerator(renderer);
+  var envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environment = envTex;
+  pmrem.dispose();
+
+  var brushedSteel = new THREE.MeshStandardMaterial({
+    color: 0xdaddde,
+    metalness: 0.95,
+    roughness: 0.3,
+    envMapIntensity: 1.4
+  });
+  var matteBlack = new THREE.MeshStandardMaterial({
+    color: 0x18181a,
+    metalness: 0.25,
+    roughness: 0.72,
+    envMapIntensity: 0.6
+  });
+  var darkHardware = new THREE.MeshStandardMaterial({
+    color: 0x2b2b2c,
+    metalness: 0.6,
+    roughness: 0.5,
+    envMapIntensity: 0.8
+  });
+
+  function materialForName(name) {
+    if (name.indexOf('LETTERBOX') !== -1) return brushedSteel;
+    if (name.indexOf('FENCE') !== -1) return matteBlack;
+    if (name.indexOf('Hilti') !== -1) return darkHardware;
+    return brushedSteel;
+  }
+
+  // Hand-inked edge outline, layered on top of the shaded materials without
+  // touching them: hard edges via EdgesGeometry, drawn as fat (multi-pixel)
+  // lines so they read as ink strokes instead of the 1px hairlines WebGL's
+  // plain LineBasicMaterial is capped to on most browsers.
+  var outlineMaterials = [];
+  function addSketchOutline(mesh) {
+    if (!mesh.geometry) return;
+    var edges = new THREE.EdgesGeometry(mesh.geometry, 25);
+    var lineGeo = new LineSegmentsGeometry().fromEdgesGeometry(edges);
+    var lineMat = new LineMaterial({
+      color: new THREE.Color(readAccent()).getHex(),
+      linewidth: 1.7,
+      worldUnits: false,
+      resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
+      transparent: true,
+      opacity: 0.85
+    });
+    var line = new LineSegments2(lineGeo, lineMat);
+    line.computeLineDistances();
+    mesh.add(line);
+    outlineMaterials.push(lineMat);
+    return lineMat;
+  }
+
+  // Click-to-isolate: which logical part a mesh belongs to, so a click on
+  // any point of the letterbox (or the fence + its mounting hardware) fades
+  // everything else instead of highlighting a single triangle.
+  function partForName(name) {
+    if (name.indexOf('LETTERBOX') !== -1) return 'letterbox';
+    return 'fence';
+  }
+  var parts = {
+    letterbox: { materials: [brushedSteel], outlineMaterials: [], opacity: 1 },
+    fence: { materials: [matteBlack, darkHardware], outlineMaterials: [], opacity: 1 }
+  };
+  var pickTargets = [];
+  var isolatedPart = null;
+
+  function setIsolated(part) {
+    isolatedPart = part;
+    Object.keys(parts).forEach(function (key) {
+      parts[key].opacity = (isolatedPart === null || key === isolatedPart) ? 1 : 0.08;
+    });
+  }
+
+  // Every material a click can dim needs transparent enabled up front — three.js
+  // recompiles the material's shader when that flag changes, so it's set once
+  // here rather than toggled per frame; opacity alone animates smoothly after.
+  function armForIsolation() {
+    Object.keys(parts).forEach(function (key) {
+      parts[key].materials.concat(parts[key].outlineMaterials).forEach(function (m) {
+        m.transparent = true;
+        // Outline ink already sits at 0.85 opacity by design; isolation dims
+        // relative to each material's own resting opacity, not a flat 1.0.
+        m.userData.baseOpacity = m.opacity;
+      });
+    });
+  }
+
+  var raycaster = new THREE.Raycaster();
+  var pointerDownPos = null;
+  renderer.domElement.addEventListener('pointerdown', function (e) {
+    pointerDownPos = { x: e.clientX, y: e.clientY };
+  });
+  renderer.domElement.addEventListener('pointerup', function (e) {
+    if (!pointerDownPos) return;
+    var dx = e.clientX - pointerDownPos.x, dy = e.clientY - pointerDownPos.y;
+    pointerDownPos = null;
+    if (Math.sqrt(dx * dx + dy * dy) > 6) return; // treat as a drag, not a click
+
+    var rect = canvas.getBoundingClientRect();
+    var ndc = new THREE.Vector2(
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -((e.clientY - rect.top) / rect.height) * 2 + 1
+    );
+    raycaster.setFromCamera(ndc, camera);
+    var hits = raycaster.intersectObjects(pickTargets.map(function (t) { return t.mesh; }), false);
+    if (hits.length === 0) { setIsolated(null); return; }
+    var hit = pickTargets.filter(function (t) { return t.mesh === hits[0].object; })[0];
+    var part = hit ? hit.part : null;
+    setIsolated(isolatedPart === part ? null : part);
+  });
+
+  var loader = new FBXLoader();
+  try {
+    var buffer = base64ToArrayBuffer(FBX_BASE64);
+    var object = loader.parse(buffer, '');
+
+    // Model ships lying on its back (CAD "3D view" export); stand it upright
+    // with the anchor bolts down through the paving and mail slot facing the
+    // default camera, and drop the baked-in ground slab since our own disc replaces it.
+    object.rotation.set(Math.PI / 2, Math.PI, 0);
+
+    var toRemove = [];
+    var outlineTargets = [];
+    object.traverse(function (child) {
+      if (!child.isMesh) return;
+      if (child.name.indexOf('Floors_1') !== -1) {
+        toRemove.push(child);
+        return;
+      }
+      child.castShadow = true;
+      child.receiveShadow = true;
+      var mat = materialForName(child.name);
+      child.material = Array.isArray(child.material) ? child.material.map(function () { return mat; }) : mat;
+      outlineTargets.push(child);
+      pickTargets.push({ mesh: child, part: partForName(child.name) });
+    });
+    toRemove.forEach(function (child) { child.parent.remove(child); });
+    // Added after traversal finishes, not during: mutating the tree with
+    // mesh.add() mid-traverse would make traverse() walk into the freshly
+    // added outline (LineSegments2 also satisfies isMesh) and outline it too,
+    // recursing forever.
+    outlineTargets.forEach(function (child) {
+      var lineMat = addSketchOutline(child);
+      parts[partForName(child.name)].outlineMaterials.push(lineMat);
+    });
+    addSketchOutline(floor);
+    armForIsolation();
+
+    pivot.add(object);
+    frameObject(object);
+
+    loadingEl.classList.add('hidden');
+    canvas.classList.add('ready');
+    setTimeout(function () { loadingEl.style.display = 'none'; }, 550);
+  } catch (err) {
+    loadingMsg.textContent = 'Could not load model';
+    spinnerEl.style.display = 'none';
+    var errEl = document.createElement('div');
+    errEl.className = 'err';
+    errEl.textContent = (err && err.message) ? err.message : String(err);
+    loadingEl.appendChild(errEl);
+    console.error(err);
+  }
+
+  function onResize() {
+    var w = window.innerWidth, h = window.innerHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+    outlineMaterials.forEach(function (m) { m.resolution.set(w, h); });
+  }
+  window.addEventListener('resize', onResize);
+  onResize();
+
+  function updateIsolation() {
+    Object.keys(parts).forEach(function (key) {
+      var factor = parts[key].opacity;
+      parts[key].materials.concat(parts[key].outlineMaterials).forEach(function (m) {
+        var base = m.userData.baseOpacity !== undefined ? m.userData.baseOpacity : 1;
+        var target = base * factor;
+        m.opacity += (target - m.opacity) * 0.18;
+      });
+    });
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    updateIsolation();
+    renderer.render(scene, camera);
+  }
+  animate();
+})();
+</script>
