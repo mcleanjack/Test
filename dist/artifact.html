@@ -85,6 +85,27 @@
   }
   .hint.hidden { opacity: 0; }
 
+  .info-box {
+    position: absolute;
+    top: 108px;
+    left: 50%;
+    width: min(78vw, 340px);
+    text-align: center;
+    font-family: Arial, Helvetica, "Segoe UI", sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--text);
+    z-index: 6;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -6px);
+    transition: opacity 0.35s ease, transform 0.35s ease;
+  }
+  .info-box.visible { opacity: 1; transform: translate(-50%, 0); }
+
   #loading {
     position: absolute;
     inset: 0;
@@ -180,6 +201,8 @@
 </div>
 
 <div class="hint" id="drag-hint">Drag to orbit &middot; scroll to zoom</div>
+
+<div class="info-box" id="info-box"></div>
 
 <div id="loading">
   <div class="spinner" id="spinner"></div>
@@ -4284,6 +4307,7 @@ three/examples/jsm/libs/fflate.module.js:
   var loadingMsg = document.getElementById('loading-msg');
   var spinnerEl = document.getElementById('spinner');
   var dragHint = document.getElementById('drag-hint');
+  var infoBox = document.getElementById('info-box');
 
   function readAccent() {
     var v = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
@@ -4603,6 +4627,10 @@ three/examples/jsm/libs/fflate.module.js:
     letterbox: { materials: [brushedSteel], outlineMaterials: [], opacity: 1 },
     fence: { materials: [matteBlack, darkHardware], outlineMaterials: [], opacity: 1 }
   };
+  var partDescriptions = {
+    letterbox: 'Selected integrated metal letterbox',
+    fence: 'Selected metal slat fence'
+  };
   var pickTargets = [];
   var isolatedPart = null;
 
@@ -4611,6 +4639,12 @@ three/examples/jsm/libs/fflate.module.js:
     Object.keys(parts).forEach(function (key) {
       parts[key].opacity = (isolatedPart === null || key === isolatedPart) ? 1 : 0.08;
     });
+    if (part && partDescriptions[part]) {
+      infoBox.textContent = partDescriptions[part];
+      infoBox.classList.add('visible');
+    } else {
+      infoBox.classList.remove('visible');
+    }
   }
 
   // Every material a click can dim needs transparent enabled up front — three.js
