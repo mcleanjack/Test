@@ -14,11 +14,19 @@
 ;
 ; How to import in Revit:
 ;   Manage tab > Additional Settings > Fill Patterns > New...
-;     - Pattern Type: Model
+;     - Pattern Type: pick MODEL to get "Brick_RunningBond_10mmGrout" below,
+;       or DRAFTING to get "Brick_RunningBond_10mmGrout_Drafting" - Revit's
+;       importer only lists patterns matching the type radio button you
+;       have selected, so this file includes both so it works either way.
 ;     - Custom > Import... > select this .pat file
 ;     - Import units: Metric (mm) - values below are in millimeters
 ;
-; Line families:
+; Model vs. Drafting: use Model for a true-scale material/surface pattern
+; that scales with the actual geometry (e.g. a wall's real brick coursing).
+; Use Drafting for a fixed on-sheet hatch (e.g. a filled region in a 2D
+; detail) that stays a constant size regardless of model changes.
+;
+; Line families (identical geometry in both definitions below):
 ;   1-2) Horizontal bed-joint band: two continuous horizontal lines, 10mm
 ;        apart, repeating every 86mm (course height) - forms the 10mm-wide
 ;        band at every horizontal mortar joint.
@@ -32,6 +40,15 @@
 ;%UNITS=MM
 *Brick_RunningBond_10mmGrout,Brick running bond, 230x76mm brick, 10mm wide double-line grout bands
 ;%TYPE=MODEL
+0,0,0,0,86
+0,0,10,0,86
+90,0,0,0,240,86,-86
+90,10,0,0,240,86,-86
+90,120,86,0,240,86,-86
+90,130,86,0,240,86,-86
+
+*Brick_RunningBond_10mmGrout_Drafting,Brick running bond, 230x76mm brick, 10mm wide double-line grout bands (drafting)
+;%TYPE=DRAFTING
 0,0,0,0,86
 0,0,10,0,86
 90,0,0,0,240,86,-86
