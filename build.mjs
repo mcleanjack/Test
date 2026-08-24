@@ -8,6 +8,7 @@ const shell = fs.readFileSync(path.join(dir, 'template-shell.html'), 'utf8');
 const bundle = fs.readFileSync(path.join(dir, '.build/bundle.min.js'), 'utf8');
 const fbxB64 = fs.readFileSync(path.join(dir, 'assets/IntegratedLetterBox3DView3D.fbx')).toString('base64');
 const logoSvg = fs.readFileSync(path.join(dir, 'assets/glenvill-homes-logo.svg'), 'utf8');
+const mapB64 = fs.readFileSync(path.join(dir, 'assets/melbourne-map.png')).toString('base64');
 
 // Replacement strings are passed through a function (not a plain string) to
 // String.replace — a plain string interprets "$&"-style sequences specially,
@@ -15,6 +16,7 @@ const logoSvg = fs.readFileSync(path.join(dir, 'assets/glenvill-homes-logo.svg')
 let out = shell.replace('/*__BUNDLE_JS__*/', () => bundle);
 out = out.replace('__FBX_BASE64__', () => fbxB64);
 out = out.replace('<!--__LOGO_SVG__-->', () => logoSvg);
+out = out.replace('__MAP_BASE64__', () => mapB64);
 
 fs.mkdirSync(path.join(dir, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(dir, 'dist/artifact.html'), out);

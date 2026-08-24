@@ -519,8 +519,9 @@
     geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     return geo;
   }
+  var CURVE_RADIUS = 90;
   var groundGrid = new THREE.LineSegments(
-    buildCurvedGridGeometry(30, 40, 24, 90, new THREE.Color(readGridColor()), new THREE.Color(readBg())),
+    buildCurvedGridGeometry(30, 40, 24, CURVE_RADIUS, new THREE.Color(readGridColor()), new THREE.Color(readBg())),
     new THREE.LineBasicMaterial({
       vertexColors: true,
       transparent: true,
@@ -529,7 +530,178 @@
     })
   );
   groundGrid.position.y = -0.003;
+  groundGrid.renderOrder = 1;
   scene.add(groundGrid);
+
+  // Street-map ground overlay: a curved plane sharing the grid's exact
+  // curveY(x,z) formula/radius, sitting just below the grid lines so the
+  // grid draws on top of it. UVs are a plain top-down projection (curving
+  // only bends Y, x/z stay put), so the map itself isn't distorted by the
+  // bend. Baked once, at load, into a canvas so a soft radial fade to
+  // transparent can be composited into its alpha channel — same "dissolve
+  // into the backdrop" treatment as the grid's own vertex-color fade,
+  // centered on the same world origin the model and grid share.
+  function buildCurvedPlaneGeometry(width, depth, segX, segZ, curveRadius) {
+    function curveY(x, z) { return -(x * x + z * z) / curveRadius; }
+    var positions = [];
+    var uvs = [];
+    var indices = [];
+    var cols = segX + 1;
+    for (var j = 0; j <= segZ; j++) {
+      var z = -depth / 2 + (j / segZ) * depth;
+      for (var i = 0; i <= segX; i++) {
+        var x = -width / 2 + (i / segX) * width;
+        positions.push(x, curveY(x, z), z);
+        uvs.push(i / segX, 1 - j / segZ);
+      }
+    }
+    for (var j2 = 0; j2 < segZ; j2++) {
+      for (var i2 = 0; i2 < segX; i2++) {
+        var a = j2 * cols + i2, b = a + 1, c = a + cols, d = c + 1;
+        indices.push(a, c, b, b, c, d);
+      }
+    }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    return geo;
+  }
+  var MAP_ASPECT = 724 / 588;
+  var MAP_DEPTH = 20;
+  var groundMapGeo = buildCurvedPlaneGeometry(MAP_DEPTH * MAP_ASPECT, MAP_DEPTH, 56, 56, CURVE_RADIUS);
+  var groundMapMat = new THREE.MeshStandardMaterial({
+    transparent: true,
+    opacity: 0.3,
+    depthWrite: false,
+    roughness: 0.22,
+    metalness: 0.18,
+    toneMapped: false
+  });
+  var groundMapPlane = new THREE.Mesh(groundMapGeo, groundMapMat);
+  groundMapPlane.position.y = -0.006;
+  groundMapPlane.renderOrder = 0;
+  groundMapPlane.receiveShadow = true;
+  scene.add(groundMapPlane);
+  // A 3x3 per-channel max filter over raw ImageData. Since the map is dark
+  // lines on a light ground, taking the neighborhood max dilates the
+  // background into the lines from both sides, shrinking every stroke by
+  // roughly a fixed pixel margin per edge — a flat amount, not a percentage.
+  // That thins a 2px minor street by half but barely touches an 8px major
+  // road, so one pass alone can't make "everything" 50% thinner without
+  // erasing the fine streets outright.
+  function neighborhoodFilter(w, h, data, pick) {
+    var out = new Uint8ClampedArray(data.length);
+    for (var y = 0; y < h; y++) {
+      var y0 = Math.max(0, y - 1), y1 = Math.min(h - 1, y + 1);
+      for (var x = 0; x < w; x++) {
+        var x0 = Math.max(0, x - 1), x1 = Math.min(w - 1, x + 1);
+        var vR = pick === 'max' ? 0 : 255, vG = vR, vB = vR;
+        for (var yy = y0; yy <= y1; yy++) {
+          for (var xx = x0; xx <= x1; xx++) {
+            var idx = (yy * w + xx) * 4;
+            if (pick === 'max') {
+              if (data[idx] > vR) vR = data[idx];
+              if (data[idx + 1] > vG) vG = data[idx + 1];
+              if (data[idx + 2] > vB) vB = data[idx + 2];
+            } else {
+              if (data[idx] < vR) vR = data[idx];
+              if (data[idx + 1] < vG) vG = data[idx + 1];
+              if (data[idx + 2] < vB) vB = data[idx + 2];
+            }
+          }
+        }
+        var oidx = (y * w + x) * 4;
+        out[oidx] = vR; out[oidx + 1] = vG; out[oidx + 2] = vB;
+        out[oidx + 3] = data[oidx + 3];
+      }
+    }
+    return out;
+  }
+  function erodeData(w, h, data) { return neighborhoodFilter(w, h, data, 'max'); }
+  function dilateData(w, h, data) { return neighborhoodFilter(w, h, data, 'min'); }
+  (function loadMapTexture() {
+    var img = new Image();
+    img.onload = function () {
+      // Erode at 2x the source resolution, not native: a straight native-res
+      // pass removes a full source pixel per edge, which deletes most of
+      // these already-thin (1-2px) strokes outright rather than thinning
+      // them. Upscaling first (with smoothing, so edges anti-alias) means
+      // the same 1px-per-edge erosion only costs about half a source pixel.
+      var nativeCanvas = document.createElement('canvas');
+      var nw = img.width * 2, nh = img.height * 2;
+      nativeCanvas.width = nw;
+      nativeCanvas.height = nh;
+      var nctx = nativeCanvas.getContext('2d');
+      nctx.imageSmoothingEnabled = true;
+      nctx.drawImage(img, 0, 0, nw, nh);
+
+      // Width-adaptive thinning. Raw pixel darkness alone doesn't separate
+      // major roads from minor streets — a thin street's core pixels are
+      // nearly as dark as a highway's, they just cover far fewer pixels —
+      // so a plain darkness threshold caught the fine streets too and wiped
+      // most of them out. Real stroke width comes from a morphological
+      // "opening" instead: erode (stage1, already thins every stroke by a
+      // fixed margin) then dilate the result back up. A thin street that
+      // stage1 erased outright has nothing left to regrow, so it stays
+      // gone in `opened`; a thick road regrows close to its original
+      // width. Wherever `opened` is still dark, that pixel belongs to a
+      // stroke wide enough to have survived erosion — i.e. a major road —
+      // so it gets a second erosion pass (stage2) on top of stage1's,
+      // landing it at roughly the same ~50% thinner treatment the minor
+      // streets already got from stage1 alone.
+      var raw = nctx.getImageData(0, 0, nw, nh).data;
+      var stage1 = erodeData(nw, nh, raw);
+      var opened = dilateData(nw, nh, stage1);
+      var stage2 = erodeData(nw, nh, stage1);
+      var merged = new Uint8ClampedArray(raw.length);
+      var THICK_STROKE_THRESHOLD = 195;
+      for (var i = 0; i < raw.length; i += 4) {
+        var src = opened[i] < THICK_STROKE_THRESHOLD ? stage2 : stage1;
+        merged[i] = src[i]; merged[i + 1] = src[i + 1];
+        merged[i + 2] = src[i + 2]; merged[i + 3] = src[i + 3];
+      }
+      nctx.putImageData(new ImageData(merged, nw, nh), 0, 0);
+
+      var res = 1536;
+      var canvas = document.createElement('canvas');
+      canvas.width = res;
+      canvas.height = Math.round((res * img.height) / img.width);
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(nativeCanvas, 0, 0, canvas.width, canvas.height);
+      ctx.globalCompositeOperation = 'destination-in';
+      var cx = canvas.width / 2, cy = canvas.height / 2;
+      var r = Math.max(canvas.width, canvas.height) * 0.58;
+      var grad = ctx.createRadialGradient(cx, cy, r * 0.1, cx, cy, r);
+      grad.addColorStop(0, 'rgba(0,0,0,1)');
+      grad.addColorStop(0.5, 'rgba(0,0,0,0.6)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.globalCompositeOperation = 'source-over';
+      var tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      // A separate, contrast-boosted bump source (not the faded color map)
+      // so roads/blocks read as a much more pronounced painted relief under
+      // the scene's key/fill/rim lights, rather than a subtle flat decal.
+      var bumpCanvas = document.createElement('canvas');
+      bumpCanvas.width = canvas.width;
+      bumpCanvas.height = canvas.height;
+      var bctx = bumpCanvas.getContext('2d');
+      bctx.filter = 'contrast(320%) brightness(76%)';
+      bctx.drawImage(nativeCanvas, 0, 0, bumpCanvas.width, bumpCanvas.height);
+      var bumpTex = new THREE.CanvasTexture(bumpCanvas);
+      var bg = new THREE.Color(readBg());
+      var lum = 0.2126 * bg.r + 0.7152 * bg.g + 0.0722 * bg.b;
+      groundMapMat.color.setScalar(lum < 0.5 ? 0.32 : 1);
+      groundMapMat.map = tex;
+      groundMapMat.bumpMap = bumpTex;
+      groundMapMat.bumpScale = 0.55;
+      groundMapMat.needsUpdate = true;
+    };
+    img.src = 'data:image/png;base64,__MAP_BASE64__';
+  })();
 
   // Soft circular contact shadow: a stylized, simplified shadow shape (not
   // the model's exact irregular cast-shadow silhouette), painted as a
@@ -559,6 +731,7 @@
   });
   var contactShadow = new THREE.Mesh(contactShadowGeo, contactShadowMat);
   contactShadow.rotation.x = -Math.PI / 2;
+  contactShadow.renderOrder = 2;
   scene.add(contactShadow);
 
   var pivot = new THREE.Group();
