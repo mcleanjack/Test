@@ -1,7 +1,7 @@
 {
-  "name": "letterbox-turntable",
+  "name": "mayde-tate-house-viewer",
   "version": "1.0.0",
-  "description": "Interactive 3D turntable viewer for the Integrated Letter Box model — a single self-contained HTML file (dist/artifact.html) with Three.js, materials, sketch-style edge outlines, and click-to-isolate parts.",
+  "description": "Interactive 3D building-information viewer for the Mayde Tate house (Revit-derived GLB) — Three.js with sketch-style edge outlines, click-to-isolate elements, and 3D construction/product callouts anchored to the model's own Revit sphere markers.",
   "private": true,
   "type": "module",
   "scripts": {

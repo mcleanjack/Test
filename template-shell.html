@@ -1,5 +1,5 @@
 <meta charset="UTF-8">
-<title>Letterbox Turntable</title>
+<title>Mayde Tate — 3D House Viewer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@600;700&display=swap" rel="stylesheet">
@@ -293,6 +293,171 @@
   #stage.ready { animation: fadein 0.6s ease both; }
   @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
 
+  /* --- 3D callout hotspots / leader lines / info panel ------------------ */
+
+  #leader-svg {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .leader-line {
+    stroke: var(--text);
+    stroke-width: 1;
+    opacity: 0;
+    transition: opacity 0.2s ease, stroke-width 0.2s ease;
+  }
+  .leader-line.shown { opacity: 0.45; }
+  .leader-line.hovered, .leader-line.active.shown { opacity: 0.85; stroke-width: 1.5; }
+
+  #hotspot-layer { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
+
+  .hotspot {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 2px solid var(--accent-ui);
+    box-shadow: 0 3px 10px var(--neu-dark);
+    cursor: pointer;
+    pointer-events: auto;
+    transition: transform 0.18s ease, opacity 0.25s ease, background 0.18s ease, border-color 0.18s ease;
+  }
+  .hotspot::after {
+    content: '';
+    position: absolute;
+    inset: -7px;
+    border-radius: 50%;
+    border: 1px solid var(--accent-ui);
+    opacity: 0.45;
+    animation: hotspotPulse 2.6s ease-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) { .hotspot::after { animation: none; } }
+  @keyframes hotspotPulse {
+    0% { transform: scale(0.65); opacity: 0.5; }
+    100% { transform: scale(2.1); opacity: 0; }
+  }
+  .hotspot:hover, .hotspot.hovered { transform: scale(1.4); }
+  .hotspot.active { background: var(--accent-ui); border-color: var(--accent-ui); }
+  .hotspot.active::after { display: none; }
+  .hotspot.occluded { opacity: 0.22; }
+  .hotspot.behind { display: none; }
+  .hotspot:focus-visible { outline: 2px solid var(--accent-ui); outline-offset: 3px; }
+
+  .callout-label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 6;
+    transform: translate(-50%, -100%);
+    font-family: "Inter", Arial, Helvetica, "Segoe UI", sans-serif;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text);
+    background: var(--bg);
+    padding: 5px 10px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px var(--neu-dark);
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .callout-label.shown { opacity: 1; transform: translate(-50%, -100%) translateY(-6px); }
+
+  .callout-panel {
+    position: absolute;
+    right: 34px;
+    bottom: 34px;
+    z-index: 8;
+    width: 300px;
+    max-width: calc(100vw - 68px);
+    max-height: calc(100vh - 68px);
+    overflow-y: auto;
+    background: var(--bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 18px;
+    box-shadow: 0 14px 36px var(--neu-dark);
+    padding: 22px 24px 20px;
+    font-family: "Inter", Arial, Helvetica, "Segoe UI", sans-serif;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(14px);
+    transition: opacity 0.35s ease, transform 0.35s ease;
+  }
+  .callout-panel.visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
+  .callout-panel .cp-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 26px;
+    height: 26px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .callout-panel .cp-close:hover { background: var(--bg-2); color: var(--text); }
+  .callout-panel .cp-close svg { width: 14px; height: 14px; }
+  .cp-eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .cp-title {
+    margin-top: 4px;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: var(--text);
+    padding-right: 20px;
+  }
+  .cp-body .cp-field { margin-top: 13px; }
+  .cp-body .cp-field .k {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 9.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .cp-body .cp-field .v { margin-top: 3px; font-size: 13px; line-height: 1.45; color: var(--text); }
+  .cp-body .cp-pending { margin-top: 13px; font-size: 12px; line-height: 1.5; color: var(--muted); font-style: italic; }
+  .cp-back {
+    display: block;
+    margin-top: 18px;
+    border: none;
+    background: var(--bg-2);
+    color: var(--text);
+    font-family: Arial, Helvetica, "Segoe UI", sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 10px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .cp-back:hover { background: var(--panel-border); }
+
+  @media (max-width: 640px) {
+    .callout-panel { left: 18px; right: 18px; bottom: 22px; width: auto; }
+  }
+
   @media (max-width: 640px) {
     .brand-logo { top: 20px; left: 20px; }
     .brand-logo svg { height: 20px; }
@@ -308,17 +473,17 @@
   }
 </style>
 
-<canvas id="stage" role="img" aria-label="3D turntable view of the integrated letterbox model. Drag to orbit."></canvas>
+<canvas id="stage" role="img" aria-label="Interactive 3D view of the Mayde Tate house. Drag to orbit, click a marker for building details."></canvas>
 
 <div class="brand-logo">
 <!--__LOGO_SVG__-->
 </div>
 
-<div class="hint" id="drag-hint">Drag to orbit &middot; scroll to zoom</div>
+<div class="hint" id="drag-hint">Drag to orbit &middot; scroll to zoom &middot; click a marker for details</div>
 
 <div class="title-block">
-  <div class="title">Integrated Letter Box</div>
-  <div class="subtitle">Brushed Steel &middot; Matte Black Slat Fence</div>
+  <div class="title">Mayde Tate</div>
+  <div class="subtitle">Linear Facade &middot; Interactive 3D House Viewer</div>
 </div>
 
 <div class="view-toggle" id="view-toggle">
@@ -328,11 +493,11 @@
 
 <div class="topbar-tools">
   <div class="part-nav">
-    <button type="button" id="part-prev" aria-label="Previous part">
+    <button type="button" id="part-prev" aria-label="Previous callout">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 6 9 12 15 18"></polyline></svg>
     </button>
     <span class="divider"></span>
-    <button type="button" id="part-next" aria-label="Next part">
+    <button type="button" id="part-next" aria-label="Next callout">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"></polyline></svg>
     </button>
   </div>
@@ -348,6 +513,19 @@
 </div>
 
 <div class="info-box" id="info-box"></div>
+
+<svg id="leader-svg" aria-hidden="true"></svg>
+<div id="hotspot-layer"></div>
+
+<div class="callout-panel" id="callout-panel">
+  <button type="button" class="cp-close" id="cp-close" aria-label="Close">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+  </button>
+  <div class="cp-eyebrow" id="cp-eyebrow">Building Element</div>
+  <div class="cp-title" id="cp-title"></div>
+  <div class="cp-body" id="cp-body"></div>
+  <button type="button" class="cp-back" id="cp-back">&larr; Back to overview</button>
+</div>
 
 <button type="button" class="spin-toggle" id="spin-toggle" aria-label="Toggle auto-rotate" aria-pressed="false">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 1 3 6.7"></path><polyline points="3 17 3 21 7 21"></polyline></svg>
@@ -365,18 +543,8 @@
 
 <script>
 (function () {
-  var FBX_BASE64 = "__FBX_BASE64__";
-
-  function base64ToArrayBuffer(base64) {
-    var binary = atob(base64);
-    var len = binary.length;
-    var bytes = new Uint8Array(len);
-    for (var i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes.buffer;
-  }
-
   var THREE = window.THREE;
-  var FBXLoader = window.FBXLoader;
+  var GLTFLoader = window.GLTFLoader;
   var OrbitControls = window.OrbitControls;
   var RoomEnvironment = window.RoomEnvironment;
   var LineSegments2 = window.LineSegments2;
@@ -397,6 +565,14 @@
   var viewToggle = document.getElementById('view-toggle');
   var viewToggleBtns = viewToggle.querySelectorAll('button');
   var spinToggle = document.getElementById('spin-toggle');
+  var hotspotLayer = document.getElementById('hotspot-layer');
+  var leaderSvg = document.getElementById('leader-svg');
+  var calloutPanel = document.getElementById('callout-panel');
+  var cpEyebrow = document.getElementById('cp-eyebrow');
+  var cpTitle = document.getElementById('cp-title');
+  var cpBody = document.getElementById('cp-body');
+  var cpClose = document.getElementById('cp-close');
+  var cpBack = document.getElementById('cp-back');
 
   function readAccent() {
     var v = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
@@ -875,17 +1051,14 @@
     object.position.y -= box.min.y;
     object.updateMatrixWorld(true);
 
-    // Ground the model on the base plate, not the anchor-bolt tips: the bolts'
-    // threaded ends already extend below the plate to embed in the paving, so
-    // sink the whole model until the plate (not the bolts) sits flush on top.
+    // Ground the model on its lowest real geometry, not on the sketch-outline
+    // lines: those ride along as unnamed children of every mesh, and their
+    // own (slightly offset) bounds would otherwise drag the ground reference
+    // off the actual building.
     var plateBox = new THREE.Box3();
     var hasPlate = false;
     object.traverse(function (child) {
-      // Skip sketch-outline lines here: they're unnamed children riding along
-      // on every mesh (including the Hilti bolts), so a name-only filter lets
-      // a bolt's own outline slip through and drag the plate reference back
-      // down to the bolt tip.
-      if (child.isMesh && !child.isLineSegments2 && child.name.indexOf('Hilti') === -1) {
+      if (child.isMesh && !child.isLineSegments2) {
         hasPlate = true;
         plateBox.union(new THREE.Box3().setFromObject(child));
       }
@@ -932,30 +1105,39 @@
   scene.environment = envTex;
   pmrem.dispose();
 
-  var brushedSteel = new THREE.MeshStandardMaterial({
-    color: 0xdaddde,
-    metalness: 0.95,
-    roughness: 0.3,
-    envMapIntensity: 1.4
-  });
-  var matteBlack = new THREE.MeshStandardMaterial({
-    color: 0x18181a,
-    metalness: 0.25,
-    roughness: 0.72,
-    envMapIntensity: 0.6
-  });
-  var darkHardware = new THREE.MeshStandardMaterial({
-    color: 0x2b2b2c,
-    metalness: 0.6,
-    roughness: 0.5,
-    envMapIntensity: 0.8
-  });
+  // Category materials for the house. The GLB itself carries only one
+  // generic merged PBR material — no per-object Revit material or texture
+  // survived the export (see build report) — so on-screen appearance is
+  // driven by keyword-matching each mesh's Revit Type Name, still embedded
+  // in the node name, against a small palette. Same technique
+  // materialForName() already used for the letterbox's two materials, just
+  // with more buckets. Each mesh gets its own *clone* of the matched
+  // template below (not the shared instance) so a single element's opacity
+  // can be isolated without dimming every other mesh in its category.
+  var matCladding = new THREE.MeshStandardMaterial({ color: 0xd9d3c4, roughness: 0.88, metalness: 0.02, envMapIntensity: 0.5 });
+  var matBrick = new THREE.MeshStandardMaterial({ color: 0x8a5947, roughness: 0.86, metalness: 0.03, envMapIntensity: 0.4 });
+  var matTimber = new THREE.MeshStandardMaterial({ color: 0xa9835f, roughness: 0.9, metalness: 0.02, envMapIntensity: 0.3 });
+  var matRoofMetal = new THREE.MeshStandardMaterial({ color: 0x53585d, roughness: 0.38, metalness: 0.65, envMapIntensity: 1.1 });
+  var matConcrete = new THREE.MeshStandardMaterial({ color: 0xb7b4ab, roughness: 0.92, metalness: 0.02, envMapIntensity: 0.3 });
+  var matPlaster = new THREE.MeshStandardMaterial({ color: 0xe9e6df, roughness: 0.88, metalness: 0.0, envMapIntensity: 0.35 });
+  var matGlazing = new THREE.MeshPhysicalMaterial({ color: 0xbfe0ea, roughness: 0.05, metalness: 0.0, transparent: true, opacity: 0.32, envMapIntensity: 1.6 });
+  var matDoor = new THREE.MeshStandardMaterial({ color: 0x2a2c2f, roughness: 0.42, metalness: 0.25, envMapIntensity: 0.9 });
+  var matLawn = new THREE.MeshStandardMaterial({ color: 0x5f7a49, roughness: 0.95, metalness: 0.0, envMapIntensity: 0.2 });
+  var matDefault = new THREE.MeshStandardMaterial({ color: 0xc7c3ba, roughness: 0.8, metalness: 0.05, envMapIntensity: 0.4 });
 
   function materialForName(name) {
-    if (name.indexOf('LETTERBOX') !== -1) return brushedSteel;
-    if (name.indexOf('FENCE') !== -1) return matteBlack;
-    if (name.indexOf('Hilti') !== -1) return darkHardware;
-    return brushedSteel;
+    if (name.indexOf('Hebel') !== -1) return matCladding;
+    if (name.indexOf('Brick') !== -1 || name.indexOf('Bricksill') !== -1) return matBrick;
+    if (name.indexOf('Stud timber') !== -1) return matTimber;
+    if (name.indexOf('TrimDek') !== -1 || name.indexOf('PARAPET') !== -1 || name.indexOf('ROOF FLASHINGS') !== -1 ||
+      name.indexOf('capping') !== -1 || name.indexOf('fascia and gutter') !== -1 ||
+      name.indexOf('Seam') !== -1) return matRoofMetal;
+    if (name.indexOf('Floor Slab') !== -1) return matConcrete;
+    if (name.indexOf('Compound Ceiling') !== -1) return matPlaster;
+    if (name.indexOf('Glazed') !== -1 || (name.indexOf('Window') !== -1)) return matGlazing;
+    if (name.indexOf('Door') !== -1 || name.indexOf('door') !== -1) return matDoor;
+    if (name.indexOf('GRASS') !== -1) return matLawn;
+    return matDefault;
   }
 
   // Hand-inked edge outline, layered on top of the shaded materials without
@@ -982,59 +1164,249 @@
     return lineMat;
   }
 
-  // Click-to-isolate: which logical part a mesh belongs to, so a click on
-  // any point of the letterbox (or the fence + its mounting hardware) fades
-  // everything else instead of highlighting a single triangle.
-  function partForName(name) {
-    if (name.indexOf('LETTERBOX') !== -1) return 'letterbox';
-    return 'fence';
+  // Every real building element survives in its node name as
+  // "<Revit Type Name> _<Revit Element ID>_" (confirmed in the build
+  // report). The 9 "GH - 3D DETAIL CALL OUT" spheres use the same pattern
+  // and are the Revit-authored anchor markers for the callout system below
+  // — they're identified and stripped from the render, never shown. Several
+  // generic-model families export with their name doubled (e.g.
+  // "capping capping"); that's collapsed here for a cleaner display name.
+  //
+  // GLTFLoader sanitizes node names on the way in (THREE.PropertyBinding's
+  // node-name rules), turning every space into "_" — so the raw name here
+  // arrives as e.g. "Basic_Wall_Hebel_-_75mm__314353_", not the original
+  // "Basic Wall Hebel - 75mm _314353_". Parsing has to account for that.
+  function parseElementName(rawName) {
+    var m = /^(.*?)_+(\d+)_+$/.exec(rawName);
+    var typeName = m ? m[1] : rawName;
+    var elementId = m ? m[2] : null;
+    typeName = typeName.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+    var dup = /^(.+) \1$/.exec(typeName);
+    if (dup) typeName = dup[1];
+    return { typeName: typeName, elementId: elementId };
   }
-  var parts = {
-    letterbox: { materials: [brushedSteel], outlineMaterials: [], opacity: 1 },
-    fence: { materials: [matteBlack, darkHardware], outlineMaterials: [], opacity: 1 }
-  };
-  var partDescriptions = {
-    letterbox: 'Selected integrated metal letterbox',
-    fence: 'Selected metal slat fence'
-  };
-  var pickTargets = [];
-  var isolatedPart = null;
 
-  function setIsolated(part) {
-    isolatedPart = part;
-    Object.keys(parts).forEach(function (key) {
-      parts[key].opacity = (isolatedPart === null || key === isolatedPart) ? 1 : 0.08;
+  // Click-to-isolate, generalized from the letterbox's two hand-picked
+  // parts to one entry per real building element: every mesh dims to 0.08
+  // opacity except whichever one (if any) is isolated. `buildingMeshes` is
+  // the full picklist for both direct-model raycasting and callout-driven
+  // highlighting; `meshByElementId` lets a callout's `revitElement`
+  // metadata field find its mesh back.
+  var buildingMeshes = [];
+  var meshByElementId = {};
+  var pickableMeshList = [];
+  var isolatedEntry = null;
+
+  function setIsolatedMesh(entry) {
+    isolatedEntry = entry || null;
+    buildingMeshes.forEach(function (e) {
+      e.targetOpacity = (isolatedEntry === null || e === isolatedEntry) ? 1 : 0.08;
     });
-    if (part && partDescriptions[part]) {
-      infoBox.textContent = partDescriptions[part];
-      infoBox.classList.add('visible');
-    } else {
-      infoBox.classList.remove('visible');
-    }
   }
-
-  // Part nav: steps through the same parts a direct click on the model
-  // selects, in declaration order, wrapping in either direction.
-  var partCycleOrder = Object.keys(parts);
-  function cyclePart(direction) {
-    var idx = isolatedPart ? partCycleOrder.indexOf(isolatedPart) : -1;
-    var next = (idx + direction + partCycleOrder.length) % partCycleOrder.length;
-    setIsolated(partCycleOrder[next]);
-  }
-  partNextBtn.addEventListener('click', function () { cyclePart(1); });
-  partPrevBtn.addEventListener('click', function () { cyclePart(-1); });
 
   // Every material a click can dim needs transparent enabled up front — three.js
   // recompiles the material's shader when that flag changes, so it's set once
   // here rather than toggled per frame; opacity alone animates smoothly after.
   function armForIsolation() {
-    Object.keys(parts).forEach(function (key) {
-      parts[key].materials.concat(parts[key].outlineMaterials).forEach(function (m) {
+    buildingMeshes.forEach(function (e) {
+      [e.material, e.outlineMaterial].forEach(function (m) {
+        if (!m) return;
         m.transparent = true;
         // Outline ink already sits at 0.85 opacity by design; isolation dims
         // relative to each material's own resting opacity, not a flat 1.0.
         m.userData.baseOpacity = m.opacity;
       });
+    });
+  }
+
+  function updateIsolation() {
+    buildingMeshes.forEach(function (e) {
+      [e.material, e.outlineMaterial].forEach(function (m) {
+        if (!m) return;
+        var base = m.userData.baseOpacity !== undefined ? m.userData.baseOpacity : 1;
+        var target = base * e.targetOpacity;
+        m.opacity += (target - m.opacity) * 0.18;
+      });
+    });
+  }
+
+  // --- 3D callout system ---------------------------------------------
+  // Anchor positions come only from the Revit sphere markers found in the
+  // model (captured in calloutAnchorWorldPos below, after the model has
+  // been framed) — never hand-entered coordinates. Content (title, product,
+  // material, manufacturer, NATSPEC...) is loaded separately from
+  // data/callouts.json and matched to a sphere by its `anchor` field (the
+  // sphere's real Revit Element ID), so new products can be added without
+  // touching any rendering code.
+  var calloutAnchorWorldPos = {};
+  var callouts = [];
+  var calloutCycleOrder = [];
+  var activeCallout = null;
+  var hoveredCallout = null;
+
+  function addPanelField(container, label, value) {
+    if (value === null || value === undefined || value === '') return;
+    var field = document.createElement('div');
+    field.className = 'cp-field';
+    var k = document.createElement('div'); k.className = 'k'; k.textContent = label;
+    var v = document.createElement('div'); v.className = 'v'; v.textContent = value;
+    field.appendChild(k); field.appendChild(v);
+    container.appendChild(field);
+  }
+
+  function renderCalloutPanel(def) {
+    cpEyebrow.textContent = def.natspec ? ('NATSPEC ' + def.natspec) : 'Building Element';
+    cpTitle.textContent = def.title || ('Callout · anchor ' + def.anchor);
+    cpBody.innerHTML = '';
+    addPanelField(cpBody, 'Product', def.product);
+    addPanelField(cpBody, 'Material', def.material);
+    addPanelField(cpBody, 'Manufacturer', def.manufacturer);
+    addPanelField(cpBody, 'Revit Material', def.revitMaterial);
+    addPanelField(cpBody, 'Revit Element', def.revitElementName ? (def.revitElementName + ' · ID ' + def.revitElement) : def.revitElement);
+    addPanelField(cpBody, 'Description', def.description);
+    if (def.status === 'pending') {
+      var pending = document.createElement('div');
+      pending.className = 'cp-pending';
+      pending.textContent = 'Product and material information for this callout hasn’t been supplied yet.';
+      cpBody.appendChild(pending);
+    }
+  }
+
+  function flyToCallout(c) {
+    var target = c.worldPos.clone();
+    var dir = camera.position.clone().sub(controls.target);
+    if (dir.lengthSq() < 1e-6) dir.set(0, 0.4, 1);
+    dir.normalize();
+    var closeDist = defaultDistance ? Math.max(controls.minDistance * 1.3, defaultDistance * 0.24) : controls.minDistance * 1.5;
+    var newPos = target.clone().addScaledVector(dir, closeDist);
+    tweenCameraTo(newPos, target, 800);
+  }
+
+  function selectCallout(c) {
+    activeCallout = c;
+    callouts.forEach(function (o) { o.hotspotEl.classList.toggle('active', o === c); });
+    renderCalloutPanel(c.data);
+    calloutPanel.classList.add('visible');
+    infoBox.classList.remove('visible');
+    setIsolatedMesh(c.linkedEntry);
+    flyToCallout(c);
+  }
+
+  function clearCallout() {
+    activeCallout = null;
+    callouts.forEach(function (o) { o.hotspotEl.classList.remove('active'); });
+    calloutPanel.classList.remove('visible');
+    setIsolatedMesh(null);
+  }
+
+  function returnToOverview() {
+    clearCallout();
+    if (defaultView) tweenCameraTo(defaultView.position, defaultView.target, 700);
+  }
+
+  cpClose.addEventListener('click', clearCallout);
+  cpBack.addEventListener('click', returnToOverview);
+
+  function setHovered(c) {
+    hoveredCallout = c;
+    callouts.forEach(function (o) {
+      o.hotspotEl.classList.toggle('hovered', o === c);
+      o.lineEl.classList.toggle('hovered', o === c);
+    });
+  }
+
+  function initHotspots(calloutDefs) {
+    calloutDefs.forEach(function (def) {
+      var pos = calloutAnchorWorldPos[def.anchor];
+      if (!pos) {
+        console.warn('house.glb has no "GH - 3D DETAIL CALL OUT" sphere for anchor', def.anchor, '(callout "' + def.id + '" skipped)');
+        return;
+      }
+      var hotspotEl = document.createElement('button');
+      hotspotEl.type = 'button';
+      hotspotEl.className = 'hotspot';
+      hotspotEl.setAttribute('aria-label', def.title || ('Building detail, anchor ' + def.anchor));
+      hotspotLayer.appendChild(hotspotEl);
+
+      var labelEl = document.createElement('div');
+      labelEl.className = 'callout-label';
+      hotspotLayer.appendChild(labelEl);
+
+      var lineEl = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      lineEl.setAttribute('class', 'leader-line');
+      leaderSvg.appendChild(lineEl);
+
+      var c = {
+        data: def,
+        worldPos: pos,
+        linkedEntry: def.revitElement ? meshByElementId[def.revitElement] : undefined,
+        hotspotEl: hotspotEl,
+        labelEl: labelEl,
+        lineEl: lineEl
+      };
+      callouts.push(c);
+
+      hotspotEl.addEventListener('mouseenter', function () { setHovered(c); });
+      hotspotEl.addEventListener('mouseleave', function () { if (hoveredCallout === c) setHovered(null); });
+      hotspotEl.addEventListener('focus', function () { setHovered(c); });
+      hotspotEl.addEventListener('blur', function () { if (hoveredCallout === c) setHovered(null); });
+      hotspotEl.addEventListener('click', function () { selectCallout(c); });
+    });
+    calloutCycleOrder = callouts.slice();
+  }
+
+  function cycleCallout(direction) {
+    if (!calloutCycleOrder.length) return;
+    var idx = activeCallout ? calloutCycleOrder.indexOf(activeCallout) : -1;
+    var next = (idx + direction + calloutCycleOrder.length) % calloutCycleOrder.length;
+    selectCallout(calloutCycleOrder[next]);
+  }
+  partNextBtn.addEventListener('click', function () { cycleCallout(1); });
+  partPrevBtn.addEventListener('click', function () { cycleCallout(-1); });
+
+  var _projected = new THREE.Vector3();
+  var _rayDir = new THREE.Vector3();
+  function updateHotspots() {
+    if (!callouts.length) return;
+    var rect = canvas.getBoundingClientRect();
+    callouts.forEach(function (c) {
+      _projected.copy(c.worldPos).project(camera);
+      var behind = _projected.z > 1 || _projected.z < -1;
+      c.hotspotEl.classList.toggle('behind', behind);
+      if (behind) { c.lineEl.classList.remove('shown'); c.labelEl.classList.remove('shown'); return; }
+
+      var x = rect.left + (_projected.x * 0.5 + 0.5) * rect.width;
+      var y = rect.top + (-_projected.y * 0.5 + 0.5) * rect.height;
+      c.hotspotEl.style.left = x + 'px';
+      c.hotspotEl.style.top = y + 'px';
+
+      var showLabel = c === hoveredCallout || c === activeCallout;
+      c.labelEl.textContent = c.data.title || ('Callout · ' + c.data.anchor);
+      c.labelEl.style.left = x + 'px';
+      c.labelEl.style.top = (y - 16) + 'px';
+      c.labelEl.classList.toggle('shown', showLabel);
+
+      c.lineEl.setAttribute('x1', x);
+      c.lineEl.setAttribute('y1', y - 16);
+      c.lineEl.setAttribute('x2', x);
+      c.lineEl.setAttribute('y2', y);
+      c.lineEl.classList.toggle('shown', showLabel);
+      c.lineEl.classList.toggle('active', c === activeCallout);
+
+      // Occlusion: de-emphasize (not hide) a hotspot whose anchor sits
+      // behind the house's own geometry from the current camera angle.
+      if (pickableMeshList.length) {
+        _rayDir.copy(c.worldPos).sub(camera.position);
+        var distToAnchor = _rayDir.length();
+        _rayDir.normalize();
+        raycaster.set(camera.position, _rayDir);
+        raycaster.far = distToAnchor;
+        raycaster.near = 0;
+        var hits = raycaster.intersectObjects(pickableMeshList, false);
+        raycaster.far = Infinity;
+        var occluded = hits.length > 0 && hits[0].distance < distToAnchor - 0.02;
+        c.hotspotEl.classList.toggle('occluded', occluded && c !== activeCallout);
+      }
     });
   }
 
@@ -1054,61 +1426,124 @@
       ((e.clientX - rect.left) / rect.width) * 2 - 1,
       -((e.clientY - rect.top) / rect.height) * 2 + 1
     );
+    raycaster.far = Infinity;
     raycaster.setFromCamera(ndc, camera);
-    var hits = raycaster.intersectObjects(pickTargets.map(function (t) { return t.mesh; }), false);
-    if (hits.length === 0) { setIsolated(null); return; }
-    var hit = pickTargets.filter(function (t) { return t.mesh === hits[0].object; })[0];
-    var part = hit ? hit.part : null;
-    setIsolated(isolatedPart === part ? null : part);
+    var hits = raycaster.intersectObjects(pickableMeshList, false);
+    if (hits.length === 0) {
+      if (!activeCallout) { setIsolatedMesh(null); infoBox.classList.remove('visible'); }
+      return;
+    }
+    var entry = buildingMeshes.filter(function (t) { return t.mesh === hits[0].object; })[0];
+    if (!entry) return;
+
+    // Clicking the model directly identifies the element in the plain
+    // info-box; clicking a callout hotspot is what opens the full product
+    // panel. But if this exact element is what a callout's metadata points
+    // at (revitElement), surface that connection by opening the callout —
+    // this is the "Revit Element -> Callout -> Product" chain from the brief.
+    var linkedCallout = callouts.filter(function (c) { return c.linkedEntry === entry; })[0];
+    if (linkedCallout) { selectCallout(linkedCallout); return; }
+
+    clearCallout();
+    setIsolatedMesh(isolatedEntry === entry ? null : entry);
+    if (isolatedEntry) {
+      infoBox.textContent = entry.typeName + (entry.elementId ? ' · Element ' + entry.elementId : '');
+      infoBox.classList.add('visible');
+    } else {
+      infoBox.classList.remove('visible');
+    }
   });
 
-  var loader = new FBXLoader();
-  try {
-    var buffer = base64ToArrayBuffer(FBX_BASE64);
-    var object = loader.parse(buffer, '');
+  var loader = new GLTFLoader();
+  var calloutDataPromise = fetch('data/callouts.json').then(function (res) {
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }).then(function (json) {
+    return json.callouts || [];
+  }).catch(function (err) {
+    console.warn('Callout metadata (data/callouts.json) unavailable:', err);
+    return [];
+  });
 
-    // Model ships lying on its back (CAD "3D view" export); stand it upright
-    // with the anchor bolts facing down and the mail slot facing the default
-    // camera, and drop the baked-in ground slab (unstyled CAD geometry) in
-    // favor of the scene's own grid + contact shadow.
-    object.rotation.set(Math.PI / 2, Math.PI, 0);
+  loader.load('house.glb', function (gltf) {
+    var object = gltf.scene;
 
-    var toRemove = [];
+    // Export is Z-up (Revit/FBX convention); this scene (grid, camera,
+    // lighting) is authored Y-up, same correction the letterbox FBX needed.
+    object.rotation.x = -Math.PI / 2;
+
+    var sphereNodes = [];
     var outlineTargets = [];
     object.traverse(function (child) {
       if (!child.isMesh) return;
-      if (child.name.indexOf('Floors_1') !== -1) {
-        toRemove.push(child);
+      if (child.name.indexOf('CALL_OUT') !== -1) {
+        // Revit-authored callout anchor marker — never rendered, only used
+        // for its 3D position (captured below once the model is framed).
+        sphereNodes.push(child);
         return;
       }
       child.castShadow = true;
       child.receiveShadow = true;
-      var mat = materialForName(child.name);
-      child.material = Array.isArray(child.material) ? child.material.map(function () { return mat; }) : mat;
-      outlineTargets.push(child);
-      pickTargets.push({ mesh: child, part: partForName(child.name) });
+      var parsed = parseElementName(child.name);
+      var mat = materialForName(parsed.typeName).clone();
+      child.material = mat;
+      outlineTargets.push({ mesh: child, parsed: parsed, material: mat });
     });
-    toRemove.forEach(function (child) { child.parent.remove(child); });
+
     // Added after traversal finishes, not during: mutating the tree with
     // mesh.add() mid-traverse would make traverse() walk into the freshly
     // added outline (LineSegments2 also satisfies isMesh) and outline it too,
     // recursing forever.
-    outlineTargets.forEach(function (child) {
-      var lineMat = addSketchOutline(child);
-      parts[partForName(child.name)].outlineMaterials.push(lineMat);
+    outlineTargets.forEach(function (t) {
+      var lineMat = addSketchOutline(t.mesh);
+      var entry = {
+        mesh: t.mesh,
+        material: t.material,
+        outlineMaterial: lineMat,
+        typeName: t.parsed.typeName,
+        elementId: t.parsed.elementId,
+        targetOpacity: 1
+      };
+      buildingMeshes.push(entry);
+      if (entry.elementId) meshByElementId[entry.elementId] = entry;
     });
+    pickableMeshList = buildingMeshes.map(function (e) { return e.mesh; });
     armForIsolation();
 
     pivot.add(object);
     frameObject(object);
+    object.updateMatrixWorld(true);
+
+    // Capture each sphere's *world* position now that the model has been
+    // scaled/positioned by frameObject() — these are the real anchor
+    // points, sourced entirely from the Revit-modelled markers, not
+    // invented coordinates — then strip the spheres from the render.
+    sphereNodes.forEach(function (sphere) {
+      var id = parseElementName(sphere.name).elementId;
+      if (id) {
+        var v = new THREE.Vector3();
+        sphere.getWorldPosition(v);
+        calloutAnchorWorldPos[id] = v;
+      }
+      if (sphere.parent) sphere.parent.remove(sphere);
+    });
+
     defaultDistance = camera.position.distanceTo(controls.target);
     defaultView = { position: camera.position.clone(), target: controls.target.clone() };
     updateZoomReadout();
 
+    calloutDataPromise.then(function (defs) {
+      initHotspots(defs);
+    });
+
     loadingEl.classList.add('hidden');
     canvas.classList.add('ready');
     setTimeout(function () { loadingEl.style.display = 'none'; }, 550);
-  } catch (err) {
+  }, function (xhr) {
+    if (xhr.lengthComputable && xhr.total) {
+      loadingMsg.textContent = 'Loading model… ' + Math.round((xhr.loaded / xhr.total) * 100) + '%';
+    }
+  }, function (err) {
     loadingMsg.textContent = 'Could not load model';
     spinnerEl.style.display = 'none';
     var errEl = document.createElement('div');
@@ -1116,7 +1551,7 @@
     errEl.textContent = (err && err.message) ? err.message : String(err);
     loadingEl.appendChild(errEl);
     console.error(err);
-  }
+  });
 
   function onResize() {
     var w = window.innerWidth, h = window.innerHeight;
@@ -1128,22 +1563,12 @@
   window.addEventListener('resize', onResize);
   onResize();
 
-  function updateIsolation() {
-    Object.keys(parts).forEach(function (key) {
-      var factor = parts[key].opacity;
-      parts[key].materials.concat(parts[key].outlineMaterials).forEach(function (m) {
-        var base = m.userData.baseOpacity !== undefined ? m.userData.baseOpacity : 1;
-        var target = base * factor;
-        m.opacity += (target - m.opacity) * 0.18;
-      });
-    });
-  }
-
   function animate() {
     requestAnimationFrame(animate);
     updateCameraTween();
     controls.update();
     updateIsolation();
+    updateHotspots();
     renderer.render(scene, camera);
   }
   animate();
