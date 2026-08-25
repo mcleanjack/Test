@@ -594,6 +594,13 @@
   renderer.toneMappingExposure = 1.15;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // Nothing that casts or receives a shadow ever moves — no exploded view,
+  // no light animation, only the camera orbits, and shadows don't depend on
+  // camera position. Recomputing the shadow map every frame (three.js's
+  // default) means a full depth pass over the whole house 60x/sec for no
+  // reason; render it once after the model loads instead (see the loader
+  // below) and this render target then stays valid for the session.
+  renderer.shadowMap.autoUpdate = false;
 
   var scene = new THREE.Scene();
   var bgColor = new THREE.Color(readBg());
@@ -1366,8 +1373,20 @@
 
   var _projected = new THREE.Vector3();
   var _rayDir = new THREE.Vector3();
+  var hotspotFrameCount = 0;
+  // The occlusion test below is a real raycast against every building mesh,
+  // once per callout — cheap for a handful of hotspots against a simple
+  // model, but this house has 9 callouts against ~90 meshes, and running
+  // that at 60fps regardless of whether the camera even moved was the
+  // single biggest cost in the render loop (worse than the shadow pass).
+  // Occlusion visibly lagging a few frames behind is imperceptible, so it's
+  // recomputed at 1/6th rate; screen position (what actually needs to track
+  // the camera smoothly) still updates every frame.
+  var OCCLUSION_EVERY_N_FRAMES = 6;
   function updateHotspots() {
     if (!callouts.length) return;
+    hotspotFrameCount++;
+    var recomputeOcclusion = pickableMeshList.length > 0 && (hotspotFrameCount % OCCLUSION_EVERY_N_FRAMES === 0);
     var rect = canvas.getBoundingClientRect();
     callouts.forEach(function (c) {
       _projected.copy(c.worldPos).project(camera);
@@ -1395,7 +1414,7 @@
 
       // Occlusion: de-emphasize (not hide) a hotspot whose anchor sits
       // behind the house's own geometry from the current camera angle.
-      if (pickableMeshList.length) {
+      if (recomputeOcclusion) {
         _rayDir.copy(c.worldPos).sub(camera.position);
         var distToAnchor = _rayDir.length();
         _rayDir.normalize();
@@ -1404,9 +1423,9 @@
         raycaster.near = 0;
         var hits = raycaster.intersectObjects(pickableMeshList, false);
         raycaster.far = Infinity;
-        var occluded = hits.length > 0 && hits[0].distance < distToAnchor - 0.02;
-        c.hotspotEl.classList.toggle('occluded', occluded && c !== activeCallout);
+        c.occluded = hits.length > 0 && hits[0].distance < distToAnchor - 0.02;
       }
+      c.hotspotEl.classList.toggle('occluded', !!c.occluded && c !== activeCallout);
     });
   }
 
@@ -1535,6 +1554,8 @@
     calloutDataPromise.then(function (defs) {
       initHotspots(defs);
     });
+
+    renderer.shadowMap.needsUpdate = true; // one-time: see autoUpdate note above
 
     loadingEl.classList.add('hidden');
     canvas.classList.add('ready');
