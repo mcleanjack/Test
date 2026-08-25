@@ -2,6 +2,8 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
+    { "source": "/house.glb", "destination": "/house.glb" },
+    { "source": "/data/callouts.json", "destination": "/data/callouts.json" },
     { "source": "/(.*)", "destination": "/artifact.html" }
   ]
 }
